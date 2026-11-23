@@ -30,7 +30,10 @@ webmail UI.
 - mailbox address grammar and the reserved-local list;
 - the Pages ↔ Worker `x-flaxia-*` HMAC (`signMailInternal` / `verifyMailInternal`);
 - `MAIL_CONTRACT_VERSION`, sent as `x-flaxia-contract` and reported by the
-  Worker's `GET /health`; a mismatch fails with `409 mail_contract_mismatch`;
+  Worker's `GET /health`; a mismatch fails with `409 mail_contract_mismatch`.
+  The header is optional during a rolling deploy: callers that omit it are
+  authenticated with HMAC but cannot be version-checked, so deploy the Worker
+  before the client when the contract changes;
 - ECIES content-key wrapping and AES-GCM envelope helpers;
 - the client-sealed send envelope (`sealEnvelope`) and its wire types.
 

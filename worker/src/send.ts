@@ -360,6 +360,14 @@ function storedBytes(envelope: Envelope): number {
   return envelope.payload.bytes + envelope.attachments.reduce((sum, attachment) => sum + attachment.bytes, 0);
 }
 
+/** Release a claimed Idempotency-Key so a corrected retry can reuse it. */
+async function releaseIdempotency(env: MailEnv, userId: string, key: string): Promise<void> {
+  await env.MAIL_DB.prepare('DELETE FROM mail_idempotency_keys WHERE user_id = ? AND idempotency_key = ?')
+    .bind(userId, key)
+    .run()
+    .catch(() => {});
+}
+
 async function writeStaged(
   env: MailEnv,
   staged: Array<{ key: string; bytes: Uint8Array }>,
@@ -1150,6 +1158,7 @@ export async function handleUpdateDraft(
   const bytes = storedBytes(parsed);
   const usage = await loadUsage(env, [userId]);
   if ((usage.get(userId) ?? 0) - existing.sizeBytes + bytes > MAX_STORAGE_BYTES) {
+    await releaseIdempotency(env, userId, key);
     return error('mail_quota_exceeded', 507);
   }
 
@@ -1215,7 +1224,10 @@ export async function handleUpdateDraft(
     );
   }
 
-  if (!(await writeStaged(env, staged, statements))) return error('mail_draft_failed', 500);
+  if (!(await writeStaged(env, staged, statements))) {
+    await releaseIdempotency(env, userId, key);
+    return error('mail_draft_failed', 500);
+  }
   for (const obsolete of [...obsoleteKeys, existing.blobId]) {
     await env.MAIL_BUCKET.delete(obsolete).catch(() => undefined);
   }

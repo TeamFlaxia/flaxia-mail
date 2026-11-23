@@ -847,9 +847,9 @@ export default {
   },
 
   async email(message: ForwardableEmailMessage, env: MailEnv): Promise<void> {
-    // P1 kill switch: do not accept live user mail before P2 (MIME auth,
-    // attachment scanning, threading, and a read UI). This bounds the blast
-    // radius if Email Routing is pointed at the Worker too early.
+    // Inbound kill switch. The D6 apex cutover executed on 2026-11-07, so the
+    // deployed config keeps this enabled; set it to "0" to stop accepting live
+    // user mail without redeploying the routing configuration.
     if (env.MAIL_INBOUND_ENABLED !== '1') {
       message.setReject('Mailbox is not accepting mail yet');
       return;

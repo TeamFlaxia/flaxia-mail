@@ -129,6 +129,51 @@ describe('mail MIME parsing', () => {
     assert.equal(parsed.spamReason, 'auth_conflict');
   });
 
+  it('quarantines a forged in-message pass when the trusted MX header reports a failure', async () => {
+    const parsed = await parseInboundEmail({
+      raw: raw(
+        [
+          'From: Spoof <spoof@example.com>',
+          'To: preview@flaxia.app',
+          'Subject: Verify your account',
+          'Authentication-Results: forged.example; spf=pass dkim=pass dmarc=pass',
+          'Content-Type: text/plain; charset=utf-8',
+        ],
+        'Click here',
+      ),
+      headers: new Headers({
+        'Authentication-Results': 'mx.cloudflare.net; spf=fail dkim=fail dmarc=fail',
+      }),
+      envelopeFrom: 'spoof@example.com',
+      envelopeTo: 'preview@flaxia.app',
+    });
+    assert.equal(parsed.auth.ambiguous, true);
+    assert.equal(parsed.spam, true);
+    assert.equal(parsed.spamReason, 'auth_conflict');
+  });
+
+  it('uses the trusted MX header when the message has no Authentication-Results', async () => {
+    const parsed = await parseInboundEmail({
+      raw: raw(
+        [
+          'From: Spoof <spoof@example.com>',
+          'To: preview@flaxia.app',
+          'Subject: Verify your account',
+          'Content-Type: text/plain; charset=utf-8',
+        ],
+        'Click here',
+      ),
+      headers: new Headers({
+        'Authentication-Results': 'mx.cloudflare.net; spf=fail dkim=fail dmarc=fail',
+      }),
+      envelopeFrom: 'spoof@example.com',
+      envelopeTo: 'preview@flaxia.app',
+    });
+    assert.equal(parsed.auth.dmarc, 'fail');
+    assert.equal(parsed.spam, true);
+    assert.equal(parsed.spamReason, 'auth_failed');
+  });
+
   it('keeps agreeing duplicate Authentication-Results headers unquarantined', async () => {
     const parsed = await parseInboundEmail({
       raw: raw(

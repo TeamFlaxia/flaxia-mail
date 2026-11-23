@@ -157,17 +157,17 @@ function parseAuthResults(raw: string): MailAuthResults {
 }
 
 function authHeaders(email: { key: string; value?: string }[], headers?: Headers): string[] {
-  // Every ARH in the message must agree; a client-supplied one before our MX
-  // is indistinguishable from a real verdict, so conflicts are quarantined
-  // instead of trusting the first header. See docs/mail.md §9.1 step 4.
+  // The trusted MX verdict must always take part in the comparison. A client
+  // can prepend a forged `Authentication-Results` header to the message, so
+  // using the in-message values alone lets a lone forged `pass` win. Including
+  // the Cloudflare-supplied header makes a forged pass a conflict and
+  // quarantines it (docs/mail.md §9.1 step 4).
   const values = email
     .filter((header) => header.key === 'authentication-results')
     .map((header) => header.value ?? '')
     .filter((value) => value.length > 0);
-  if (values.length === 0) {
-    const fallback = headerValue(headers, 'Authentication-Results');
-    if (fallback) values.push(fallback);
-  }
+  const trusted = headerValue(headers, 'Authentication-Results');
+  if (trusted) values.push(trusted);
   return values;
 }
 
