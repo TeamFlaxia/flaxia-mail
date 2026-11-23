@@ -45,14 +45,14 @@ import { signMailInternal, sealEnvelope } from '@flaxia/mail-contract';
 
 Until the package is published to npm (the `contract-v*` publish workflow
 needs an `NPM_TOKEN` secret), Flaxia consumes the packed tarball committed at
-`flaxia/vendor/flaxia-mail-contract-0.1.0.tgz`:
+`flaxia/vendor/flaxia-mail-contract-0.1.1.tgz`:
 
 ```sh
 # in this repo
 npm run build
-npm pack                      # -> flaxia-mail-contract-0.1.0.tgz
+npm pack                      # -> flaxia-mail-contract-0.1.1.tgz
 # in flaxia
-cp ../flaxia-mail/flaxia-mail-contract-0.1.0.tgz vendor/
+cp ../flaxia-mail/flaxia-mail-contract-0.1.1.tgz vendor/
 # bump the version + filename in flaxia/package.json, then npm install
 ```
 
@@ -86,7 +86,6 @@ Production Worker secrets (set with `wrangler secret put --config worker/wrangle
 
 - `MAIL_INTERNAL_SECRET` — must equal the value configured on the Flaxia Pages project
 - `MAIL_THREAD_SECRET` — subject-based thread fallback HMAC
-- `CROWD_API_KEY` / `CROWD_WEBHOOK_SIGNING_SECRET` — attachment screening (optional)
 
 Deploy order: **mail → Flaxia Pages**. A mail deploy failure must not block the
 site; the Pages app tolerates an unavailable `MAIL_SERVICE` for non-mail routes.

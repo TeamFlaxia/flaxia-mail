@@ -15,6 +15,13 @@
  * Protocol specification: `flaxia/docs/mail.md` §5 (internal API), §6.2 (ECIES),
  * §7 and §11.2 (addresses).
  */
+/**
+ * Version of the wire contract. Sent as `x-flaxia-contract` on every internal
+ * call. The Worker rejects a mismatch with `mail_contract_mismatch` so a Pages
+ * deploy cannot silently sign with an older address/HMAC/crypto contract than
+ * the deployed Worker.
+ */
+export declare const MAIL_CONTRACT_VERSION = "0.1.1";
 export declare const MAIL_DOMAIN = "flaxia.app";
 export declare const USERNAME_PATTERN: RegExp;
 /**

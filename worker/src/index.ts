@@ -2,7 +2,13 @@
 // flaxia-mail Worker (docs/mail.md §5). Internal API is Service-Binding-only:
 // every fetch() call must carry a valid MAIL_INTERNAL_SECRET HMAC for the
 // authenticated user id. The Worker never trusts a bare user id.
-import { isValidP256SpkiB64, RESERVED_LOCALS, verifyMailInternal } from '@flaxia/mail-contract';
+import {
+  isValidP256SpkiB64,
+  MAIL_CONTRACT_VERSION,
+  RESERVED_LOCALS,
+  USERNAME_PATTERN,
+  verifyMailInternal,
+} from '@flaxia/mail-contract';
 import { claimIdempotency, error, idempotencyKey, json, readJsonBody } from './http.ts';
 import { handleInboundEmail, type MailEnv } from './ingest.ts';
 import {
@@ -28,7 +34,7 @@ function normalizeAddress(value: unknown): string | null {
   const at = normalized.lastIndexOf('@');
   if (at < 1) return null;
   const local = normalized.slice(0, at);
-  if (!/^[A-Za-z0-9_]{1,20}$/.test(local)) return null;
+  if (!USERNAME_PATTERN.test(local)) return null;
   if (RESERVED_LOCALS.has(local)) return null;
   return normalized;
 }
@@ -819,7 +825,15 @@ export default {
     const url = new URL(req.url);
     // Health is unauthenticated but the Worker is only reachable through the
     // service binding (workers_dev is disabled), never the public internet.
-    if (req.method === 'GET' && url.pathname === '/health') return json({ ok: true });
+    if (req.method === 'GET' && url.pathname === '/health') {
+      return json({ ok: true, contract: MAIL_CONTRACT_VERSION });
+    }
+
+    // Reject a contract skew before doing any work. The header is optional so
+    // the Worker can be deployed before every client is upgraded; when present
+    // it must match exactly.
+    const contract = req.headers.get('x-flaxia-contract');
+    if (contract && contract !== MAIL_CONTRACT_VERSION) return error('mail_contract_mismatch', 409);
 
     // The signature covers the body hash, so read it from a clone and let the
     // endpoint consume the original stream normally.

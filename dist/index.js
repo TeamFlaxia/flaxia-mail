@@ -15,6 +15,13 @@
  * Protocol specification: `flaxia/docs/mail.md` §5 (internal API), §6.2 (ECIES),
  * §7 and §11.2 (addresses).
  */
+/**
+ * Version of the wire contract. Sent as `x-flaxia-contract` on every internal
+ * call. The Worker rejects a mismatch with `mail_contract_mismatch` so a Pages
+ * deploy cannot silently sign with an older address/HMAC/crypto contract than
+ * the deployed Worker.
+ */
+export const MAIL_CONTRACT_VERSION = '0.1.1';
 // ---------------------------------------------------------------------------
 // Mail addresses (docs/mail.md §7, §11.2)
 // ---------------------------------------------------------------------------
@@ -110,11 +117,10 @@ export async function hmacHex(secret, message) {
 }
 /** Length-independent byte compare so a wrong signature cannot be brute-forced by timing. */
 export function signatureEquals(a, b) {
-    if (a.length !== b.length)
-        return false;
-    let diff = 0;
-    for (let i = 0; i < a.length; i++)
-        diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+    let diff = a.length === b.length ? 0 : 1;
+    const length = Math.max(a.length, b.length);
+    for (let i = 0; i < length; i++)
+        diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
     return diff === 0;
 }
 /** Maximum accepted clock skew for `x-flaxia-ts`, in seconds. */
@@ -139,6 +145,7 @@ export async function signMailInternal(env, userId, method, path, body = '') {
         'x-flaxia-user-id': userId,
         'x-flaxia-ts': ts,
         'x-flaxia-sig': await hmacHex(secret, message),
+        'x-flaxia-contract': MAIL_CONTRACT_VERSION,
     };
 }
 /**
@@ -283,7 +290,7 @@ export async function deriveAttachmentKey(contentKey, attachmentId) {
 export async function encryptPayload(contentKey, plaintext, messageId) {
     const key = await subtle.importKey('raw', contentKey, 'AES-GCM', false, ['encrypt', 'decrypt']);
     const iv = crypto.getRandomValues(new Uint8Array(12));
-    const aad = encoder.encode(`flaxia.mail.payload.v1:${messageId}`);
+    const aad = encoder.encode(payloadInfo(messageId));
     const ciphertext = await subtle.encrypt({ name: 'AES-GCM', iv: iv, additionalData: aad }, key, plaintext);
     return { iv: encodeB64(iv), ciphertext: new Uint8Array(ciphertext) };
 }
@@ -301,7 +308,7 @@ export async function encryptString(keyBytes, plaintext, info) {
 }
 export async function decryptPayload(contentKey, ivB64, ciphertext, messageId) {
     const key = await subtle.importKey('raw', contentKey, 'AES-GCM', false, ['encrypt', 'decrypt']);
-    const aad = encoder.encode(`flaxia.mail.payload.v1:${messageId}`);
+    const aad = encoder.encode(payloadInfo(messageId));
     const plaintext = await subtle.decrypt({ name: 'AES-GCM', iv: decodeB64(ivB64), additionalData: aad }, key, ciphertext);
     return new Uint8Array(plaintext);
 }

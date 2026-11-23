@@ -7,10 +7,15 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   attachmentKeyInfo,
+  attachmentNameInfo,
   decryptPayload,
   deriveAttachmentKey,
   encodeB64,
   encryptPayload,
+  fromNameInfo,
+  metaInfo,
+  payloadInfo,
+  subjectInfo,
   unwrapContentKey,
   wrapContentKey,
   wrapInfo,
@@ -52,9 +57,28 @@ describe('mail ECIES', () => {
     await assert.rejects(unwrapContentKey(wrapped, recipient.pkcs8B64, 'msg-123', 'bob@flaxia.app'), Error);
   });
 
-  it('uses the spec info strings', () => {
+  it('pins every AAD/HKDF info string', () => {
     assert.equal(wrapInfo('m1', 'a@flaxia.app'), 'flaxia.mail.wrap.v1:m1:a@flaxia.app');
     assert.equal(attachmentKeyInfo('att1'), 'flaxia.mail.attachment.v1:att1');
+    assert.equal(metaInfo('m1'), 'flaxia.mail.meta.v1:m1');
+    assert.equal(subjectInfo('m1'), 'flaxia.mail.subject.v1:m1');
+    assert.equal(fromNameInfo('m1'), 'flaxia.mail.from-name.v1:m1');
+    assert.equal(attachmentNameInfo('att1'), 'flaxia.mail.attachment-name.v1:att1');
+    assert.equal(payloadInfo('m1'), 'flaxia.mail.payload.v1:m1');
+  });
+
+  it('decrypts a frozen stored payload (AAD + envelope format)', async () => {
+    // Fixed key/IV/AAD so a rename of an info string or a change to the AAD
+    // breaks this vector. The ciphertext was produced by WebCrypto AES-GCM.
+    const contentKey = Buffer.from('AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=', 'base64');
+    const iv = 'AQIDBAUGBwgJCgsM';
+    const ciphertext = Buffer.from('bY82uYO0luot2gomMH6LQS4oRwfRjP1GcxN75x8hyrS2', 'base64');
+    const plaintext = await decryptPayload(new Uint8Array(contentKey), iv, new Uint8Array(ciphertext), 'msg-1');
+    assert.equal(new TextDecoder().decode(plaintext), 'hello flaxia mail');
+    await assert.rejects(
+      decryptPayload(new Uint8Array(contentKey), iv, new Uint8Array(ciphertext), 'msg-2'),
+      Error,
+    );
   });
 
   it('derives distinct attachment keys per attachment id', async () => {
