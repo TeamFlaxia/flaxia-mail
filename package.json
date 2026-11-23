@@ -1,0 +1,33 @@
+{
+  "name": "@flaxia/mail-contract",
+  "version": "0.1.0",
+  "description": "Mailbox address grammar, Pages\u2194Worker HMAC protocol and ECIES envelope primitives shared by Flaxia Mail and its clients.",
+  "type": "module",
+  "license": "AGPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TeamFlaxia/flaxia-mail.git"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --experimental-strip-types --test \"tests/**/*.test.ts\"",
+    "test:worker": "npm --prefix worker test",
+    "check": "npm run build && npm run typecheck && npm test && npm run test:worker"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3"
+  }
+}

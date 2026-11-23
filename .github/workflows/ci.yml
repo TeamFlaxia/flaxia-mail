@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['contract-v*']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.x
+          cache: npm
+      - run: npm ci
+      - name: Build the contract
+        run: npm run build
+      - name: dist/ must be committed
+        run: git diff --exit-code -- dist
+      - run: npm run typecheck
+      - run: npm test
+
+  worker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: contract
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.x
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            worker/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - run: npm ci --prefix worker
+      - run: npm --prefix worker run typecheck
+      - run: npm --prefix worker test
+
+  deploy-worker:
+    # Production deploy mirrors the Pages workflow: only a successful main build deploys.
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    needs: [contract, worker]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.x
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            worker/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - run: npm ci --prefix worker
+      - name: Apply Mail D1 migrations
+        working-directory: worker
+        run: |
+          set -euo pipefail
+          retry() { local n=0; until "$@"; do n=$((n+1)); if [ "$n" -ge 5 ]; then return 1; fi; echo "retrying in 15s ($n/5): $*"; sleep 15; done; }
+          retry npx wrangler d1 migrations apply flaxia-mail --remote --config wrangler.toml
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Deploy Mail Worker
+        working-directory: worker
+        run: |
+          set -euo pipefail
+          retry() { local n=0; until "$@"; do n=$((n+1)); if [ "$n" -ge 5 ]; then return 1; fi; echo "retrying in 15s ($n/5): $*"; sleep 15; done; }
+          retry npx wrangler deploy --config wrangler.toml
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
