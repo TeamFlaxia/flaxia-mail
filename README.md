@@ -37,15 +37,28 @@ browsers and Node 22+.
 
 ### Consuming it
 
-Flaxia pins a published/tagged version and imports the same functions:
+Flaxia pins the package and imports the same functions:
 
 ```ts
 import { signMailInternal, sealEnvelope } from '@flaxia/mail-contract';
 ```
 
-Until the package is published to npm, Flaxia may pin a git tag. The committed
-`dist/` makes that install work without a build step. `npm run build` regenerates
-it; CI fails if `dist/` is stale.
+Until the package is published to npm (the `contract-v*` publish workflow
+needs an `NPM_TOKEN` secret), Flaxia consumes the packed tarball committed at
+`flaxia/vendor/flaxia-mail-contract-0.1.0.tgz`:
+
+```sh
+# in this repo
+npm run build
+npm pack                      # -> flaxia-mail-contract-0.1.0.tgz
+# in flaxia
+cp ../flaxia-mail/flaxia-mail-contract-0.1.0.tgz vendor/
+# bump the version + filename in flaxia/package.json, then npm install
+```
+
+The committed `dist/` is what the tarball ships, so no build step runs on
+install. After the first npm publish, switch Flaxia to the registry semver
+range (`^0.1.x`) and delete the vendored tarball.
 
 ## Development
 
