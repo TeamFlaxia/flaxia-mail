@@ -13,7 +13,7 @@ webmail UI.
 
 ```text
 .
-├── src/index.ts          @flaxia/mail-contract (published package)
+├── src/index.ts          @flaxia/mail-contract (GitHub Release tarball)
 ├── dist/                 committed build output for git/offline installs
 ├── tests/                contract tests (address grammar, HMAC, ECIES, seal)
 └── worker/
@@ -45,22 +45,43 @@ Flaxia pins the package and imports the same functions:
 import { signMailInternal, sealEnvelope } from '@flaxia/mail-contract';
 ```
 
-Until the package is published to npm (the `contract-v*` publish workflow
-needs an `NPM_TOKEN` secret), Flaxia consumes the packed tarball committed at
-`flaxia/vendor/flaxia-mail-contract-0.1.1.tgz`:
+The contract is not published to any package registry. It ships as a tarball
+attached to a GitHub Release, and Flaxia vendors that tarball at
+`flaxia/vendor/flaxia-mail-contract-<version>.tgz`.
+
+Release flow:
+
+1. Bump `version` in `package.json`, rebuild so `dist/` is committed, and tag
+   the commit `contract-vX.Y.Z` (e.g. `contract-v0.1.1`). Push the tag.
+2. `.github/workflows/release.yml` runs `npm ci`, `npm run build`, fails if
+   `dist/` is stale, runs the contract tests, then `npm pack` and creates or
+   updates the GitHub Release whose asset is
+   `flaxia-mail-contract-X.Y.Z.tgz`.
+3. Copy that asset into Flaxia and update the `file:` dependency:
 
 ```sh
-# in this repo
-npm run build
-npm pack                      # -> flaxia-mail-contract-0.1.1.tgz
+# download the asset from the GitHub Release for contract-v0.1.1
+gh release download contract-v0.1.1 -p flaxia-mail-contract-0.1.1.tgz
 # in flaxia
-cp ../flaxia-mail/flaxia-mail-contract-0.1.1.tgz vendor/
-# bump the version + filename in flaxia/package.json, then npm install
+cp flaxia-mail-contract-0.1.1.tgz vendor/
+```
+
+Then in `flaxia/package.json` point the dependency at the new tarball and
+install:
+
+```json
+"@flaxia/mail-contract": "file:vendor/flaxia-mail-contract-0.1.1.tgz"
+```
+
+```sh
+npm install
 ```
 
 The committed `dist/` is what the tarball ships, so no build step runs on
-install. After the first npm publish, switch Flaxia to the registry semver
-range (`^0.1.x`) and delete the vendored tarball.
+install. The package stays public (it has no `private` field) and its Release
+assets are downloadable, but releases only ever come from CI: a
+`prepublishOnly` guard aborts any attempt to push it to a registry, so there is
+no registry step and no npm auth token to configure.
 
 ## Development
 
