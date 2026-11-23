@@ -28,6 +28,6 @@
     "check": "npm run build && npm run typecheck && npm test && npm run test:worker"
   },
   "devDependencies": {
-    "typescript": "^6.0.3"
+    "typescript": "6.0.3"
   }
 }
