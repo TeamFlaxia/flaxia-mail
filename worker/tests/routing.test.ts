@@ -30,5 +30,8 @@ describe('mail worker routing', () => {
     assert.match(wrangler, /^workers_dev = false$/m, 'the Worker must not expose workers.dev');
     assert.match(wrangler, /^name = "flaxia-mail"$/m);
     assert.doesNotMatch(wrangler, /^\s*routes\s*=/m, 'the Mail Worker must not claim a public route');
+    // Apex cutover (D6) has executed: inbound mail is the canonical receive
+    // path and must be explicitly enabled, not silently defaulted by deploy.
+    assert.match(wrangler, /^MAIL_INBOUND_ENABLED = "1"$/m, 'inbound mail must stay enabled');
   });
 });
